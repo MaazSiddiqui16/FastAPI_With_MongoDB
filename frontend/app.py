@@ -79,9 +79,9 @@ with tabs[0]:
             res = requests.post(f"{API_URL}/students", json=data, timeout=10)
 
             if res.status_code == 200:
-                st.session_state["flash"] = {"type": "success", "msg": "✅ Student added successfully!"}
+                st.session_state["flash"] = {"type": "success", "msg": "Student added successfully!"}
             else:
-                st.session_state["flash"] = {"type": "error", "msg": "❌ Failed to add student!"}
+                st.session_state["flash"] = {"type": "error", "msg": "Failed to add student!"}
             st.session_state["reset_add_form"] = True
             st.rerun()
 
@@ -97,12 +97,12 @@ with tabs[1]:
 # ================= UPDATE STUDENT =================
 with tabs[2]:
     st.subheader("Update Student Details")
-    student_id = st.text_input("Enter Student ID to Update", key="upd_id")
-    new_name = st.text_input("New Name (leave blank to skip)", key="upd_name")
-    new_age = st.number_input("New Age (0 = skip)", min_value=0, max_value=100, key="upd_age")
-    new_course = st.text_input("New Course (optional)", key="upd_course")
-    new_department = st.text_input("New Department (optional)", key="upd_department")
-    new_gpa = st.number_input("New GPA (0 = skip)", min_value=0.0, max_value=4.0, step=0.1, key="upd_gpa")
+    student_id = st.text_input("Student ID (Required)", key="upd_id")
+    new_name = st.text_input("Name (leave blank to skip)", key="upd_name")
+    new_age = st.number_input("Age (0 = skip)", min_value=0, max_value=100, key="upd_age")
+    new_course = st.text_input("Course (optional)", key="upd_course")
+    new_department = st.text_input("Department (optional)", key="upd_department")
+    new_gpa = st.number_input("GPA (0 = skip)", min_value=0.0, max_value=4.0, step=0.1, key="upd_gpa")
 
     if st.button("Update Student"):
         if not student_id.strip():
@@ -126,11 +126,11 @@ with tabs[2]:
                 try:
                     res = requests.put(f"{API_URL}/students/{student_id}", json=update_data, timeout=10)
                     if res.ok:
-                        st.session_state["flash"] = {"type": "success", "msg": "✅ Student updated successfully!"}
+                        st.session_state["flash"] = {"type": "success", "msg": "Student updated successfully!"}
                     else:
-                        st.session_state["flash"] = {"type": "error", "msg": "❌ Failed to update student!"}
+                        st.session_state["flash"] = {"type": "error", "msg": "Failed to update student!"}
                 except requests.RequestException as e:
-                    st.session_state["flash"] = {"type": "error", "msg": f"❌ Failed to update student: {e}"}
+                    st.session_state["flash"] = {"type": "error", "msg": f"Failed to update student: {e}"}
                 st.session_state["reset_update_form"] = True
                 st.rerun()
 
@@ -146,10 +146,10 @@ with tabs[3]:
             try:
                 res = requests.delete(f"{API_URL}/students/{delete_id}", timeout=10)
                 if res.ok:
-                    st.session_state["flash"] = {"type": "success", "msg": "🗑️ Student deleted successfully!"}
+                    st.session_state["flash"] = {"type": "success", "msg": "Student deleted successfully!"}
                 else:
-                    st.session_state["flash"] = {"type": "error", "msg": "❌ Failed to delete student!"}
+                    st.session_state["flash"] = {"type": "error", "msg": "Student doesn't exist!"}
             except requests.RequestException as e:
-                st.session_state["flash"] = {"type": "error", "msg": f"❌ Failed to delete student: {e}"}
+                st.session_state["flash"] = {"type": "error", "msg": f"Failed to delete student: {e}"}
             st.session_state["reset_delete_form"] = True
             st.rerun()
