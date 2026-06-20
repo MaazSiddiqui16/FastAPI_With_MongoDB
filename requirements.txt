@@ -4,3 +4,8 @@ pymongo
 streamlit
 requests
 python-dotenv
+passlib
+bcrypt==4.0.1
+PyJWT
+python-multipart
+python-jose[cryptography]

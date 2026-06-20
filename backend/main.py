@@ -1,60 +1,67 @@
-import os
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from pymongo import MongoClient, ReturnDocument
-from urllib.parse import quote_plus
-from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import timedelta
 
-# Load environment variables
-load_dotenv()
-
-# ==========================================
-# 🚀 FastAPI + MongoDB Atlas (Cloud) Connection
-# ==========================================
+# Import from our new modules
+from database import collection_students, collection_users, get_next_id
+from models import Student, UserSignup
+from auth import (
+    verify_password, get_password_hash, create_access_token, 
+    get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+)
 
 app = FastAPI(title="🎓 FastAPI + MongoDB Student CRUD")
 
-# ✅ Connect to MongoDB
-USERNAME = os.getenv("MONGO_USER")             
-PASSWORD = quote_plus(os.getenv("MONGO_PASS"))  
-CLUSTER = os.getenv("MONGO_CLUSTER")
-DATABASE_NAME = os.getenv("DATABASE_NAME")
+# ========================
+# 🔐 AUTH ROUTES
+# ========================
+@app.post("/signup", status_code=status.HTTP_201_CREATED)
+def signup(user: UserSignup):
+    # Create a unique username identifier based on first and last name
+    username = f"{user.first_name.strip()} {user.last_name.strip()}".lower()
+    
+    if collection_users.find_one({"username": username}):
+        raise HTTPException(status_code=400, detail="Account with this name already exists")
+    
+    hashed_password = get_password_hash(user.password)
+    user_dict = {
+        "username": username,
+        "first_name": user.first_name.strip(),
+        "last_name": user.last_name.strip(),
+        "gender": user.gender.strip(),
+        "dob": str(user.dob),
+        "hashed_password": hashed_password
+    }
+    collection_users.insert_one(user_dict)
+    return {"message": "User created successfully"}
 
-# Build MongoDB connection string (cloud or local)
-MONGODB_URL = os.getenv("MONGODB_URL") or f"mongodb+srv://{USERNAME}:{PASSWORD}@{CLUSTER}/"
-
-client = MongoClient(MONGODB_URL)
-db = client[DATABASE_NAME]
-collection_students = db["students"]
-collection_counters = db["counters"]
-
-# ✅ Create Counter Document if not exists
-if collection_counters.count_documents({"_id": "studentid"}) == 0:
-    collection_counters.insert_one({"_id": "studentid", "sequence_value": 0})
-
-# ✅ Function to get next ID
-def get_next_id():
-    counter = collection_counters.find_one_and_update(
-        {"_id": "studentid"},
-        {"$inc": {"sequence_value": 1}},
-        upsert=True,
-        return_document=ReturnDocument.AFTER
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Find user by generated username
+    user = collection_users.find_one({"username": form_data.username.lower()})
+    if not user or not verify_password(form_data.password, user["hashed_password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["username"]}, expires_delta=access_token_expires
     )
-    return int(counter["sequence_value"]) 
-
-# ✅ Student Model
-class Student(BaseModel):
-    Name: str
-    Age: int
-    Course: str
-    Department: str
-    GPA: float
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "first_name": user.get("first_name", ""),
+        "last_name": user.get("last_name", "")
+    }
 
 # ========================
 # 🧩 CREATE
 # ========================
 @app.post("/students")
-def add_student(student: Student):
+def add_student(student: Student, current_user: str = Depends(get_current_user)):
     new_id = get_next_id()
     student_dict = student.model_dump()
     student_dict["ID"] = new_id
@@ -65,7 +72,7 @@ def add_student(student: Student):
 # 📋 READ ALL
 # ========================
 @app.get("/students")
-def get_all_students():
+def get_all_students(current_user: str = Depends(get_current_user)):
     students = list(collection_students.find({}, {"_id": 0}))
     return students
 
@@ -73,7 +80,7 @@ def get_all_students():
 # 🔍 READ ONE (by ID)
 # ========================
 @app.get("/students/{id}")
-def get_student(id: int):
+def get_student(id: int, current_user: str = Depends(get_current_user)):
     student = collection_students.find_one({"ID": id}, {"_id": 0})
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -83,7 +90,7 @@ def get_student(id: int):
 # ✏️ UPDATE (by ID)
 # ========================
 @app.put("/students/{id}")
-def update_student(id: int, updated_data: dict):
+def update_student(id: int, updated_data: dict, current_user: str = Depends(get_current_user)):
     # Validate allowed fields
     allowed_fields = {"Name", "Age", "Course", "Department", "GPA"}
     clean_data = {k: v for k, v in updated_data.items() if k in allowed_fields and v not in [None, ""]}
@@ -100,7 +107,7 @@ def update_student(id: int, updated_data: dict):
 # ❌ DELETE (by ID)
 # ========================
 @app.delete("/students/{id}")
-def delete_student(id: int):
+def delete_student(id: int, current_user: str = Depends(get_current_user)):
     result = collection_students.delete_one({"ID": id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Student not found")

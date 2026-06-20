@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import requests
 from dotenv import load_dotenv
+from datetime import date
 
 # Load environment variables
 load_dotenv()
@@ -15,8 +16,11 @@ if not API_URL:
 
 st.set_page_config(page_title="Student Dashboard", page_icon="🎓", layout="wide")
 
-st.title("🎓 Student Management Dashboard")
-st.markdown("Manage students using FastAPI + MongoDB")
+# Initialize session state for auth
+if "token" not in st.session_state:
+    st.session_state["token"] = None
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
 
 # Flash message renderer (auto-dismiss toast, then clear state)
 flash = st.session_state.get("flash")
@@ -25,6 +29,88 @@ if flash:
     st.toast(flash.get("msg", ""), icon=icon)
     if "flash" in st.session_state:
         del st.session_state["flash"]
+
+# ================= AUTHENTICATION UI =================
+if not st.session_state["logged_in"]:
+    st.title("🎓 Student Management Dashboard")
+    st.markdown("Manage students using FastAPI + MongoDB")
+    
+    auth_tabs = st.tabs(["Login", "Sign Up"])
+    
+    with auth_tabs[0]:
+        st.subheader("Login")
+        login_first_name = st.text_input("First Name", key="login_first")
+        login_last_name = st.text_input("Last Name", key="login_last")
+        login_pass = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Login"):
+            if not login_first_name.strip() or not login_last_name.strip() or not login_pass.strip():
+                st.warning("Please enter your First Name, Last Name, and Password.")
+            else:
+                login_username = f"{login_first_name.strip()} {login_last_name.strip()}".lower()
+                res = requests.post(
+                    f"{API_URL}/login", 
+                    data={"username": login_username, "password": login_pass}
+                )
+                if res.ok:
+                    data = res.json()
+                    st.session_state["token"] = data["access_token"]
+                    st.session_state["first_name"] = data.get("first_name", login_first_name)
+                    st.session_state["last_name"] = data.get("last_name", login_last_name)
+                    st.session_state["logged_in"] = True
+                    st.session_state["flash"] = {"type": "success", "msg": "Logged in successfully!"}
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials (Try creating an account using 'Sign Up')")
+                
+    with auth_tabs[1]:
+        st.subheader("Sign Up")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            signup_first_name = st.text_input("First Name", key="signup_first")
+            signup_gender = st.selectbox("Gender", ["Male", "Female", "Other"], key="signup_gender")
+        with col2:
+            signup_last_name = st.text_input("Last Name", key="signup_last")
+            signup_dob = st.date_input("Date of Birth", key="signup_dob", min_value=date(1900, 1, 1), max_value=date.today())
+            
+        signup_pass = st.text_input("New Password", type="password", key="signup_pass")
+        
+        if st.button("Sign Up"):
+            if not signup_first_name.strip() or not signup_last_name.strip() or not signup_pass.strip():
+                st.warning("Please provide all required fields correctly.")
+            else:
+                res = requests.post(
+                    f"{API_URL}/signup", 
+                    json={
+                        "first_name": signup_first_name.strip(),
+                        "last_name": signup_last_name.strip(),
+                        "gender": signup_gender,
+                        "dob": str(signup_dob),
+                        "password": signup_pass
+                    }
+                )
+                if res.ok:
+                    st.success("Account created successfully! You can now log in.")
+                else:
+                    st.error(res.json().get("detail", "Error creating account"))
+
+    st.stop() # Stop rendering the rest of the app if not logged in
+
+# ================= LOGGED IN APP =================
+col1, col2 = st.columns([8, 1])
+with col1:
+    st.title("🎓 Student Management Dashboard")
+    st.markdown("Manage students using FastAPI + MongoDB")
+    st.write(f"### Welcome, {st.session_state.get('first_name', '')} {st.session_state.get('last_name', '')} 🎉")
+with col2:
+    if st.button("Logout", use_container_width=True):
+        st.session_state["token"] = None
+        st.session_state["logged_in"] = False
+        st.session_state["flash"] = {"type": "info", "msg": "Logged out."}
+        st.rerun()
+
+def get_headers():
+    return {"Authorization": f"Bearer {st.session_state['token']}"}
 
 # Apply pending form resets BEFORE widgets are instantiated
 if st.session_state.get("reset_add_form"):
@@ -49,12 +135,15 @@ if st.session_state.get("reset_delete_form"):
     del st.session_state["reset_delete_form"]
 
 # Tabs for better organization
-tabs = st.tabs(["Add Student", "View Students", "Update Student", "Delete Student"])
-
+tabs = st.tabs(["View Students", "Add Student", "Update Student", "Delete Student"])
 
 def fetch_students():
     try:
-        res = requests.get(f"{API_URL}/students", timeout=10)
+        res = requests.get(f"{API_URL}/students", headers=get_headers(), timeout=10)
+        if res.status_code == 401:
+            st.session_state["logged_in"] = False
+            st.session_state["token"] = None
+            st.rerun()
         if res.ok:
             return res.json()
         st.error(f"Error fetching students: {res.status_code}")
@@ -62,8 +151,17 @@ def fetch_students():
         st.error(f"Error fetching students: {e}")
     return []
 
-# ================= ADD STUDENT =================
+# ================= VIEW STUDENTS =================
 with tabs[0]:
+    st.subheader("All Students")
+    students = fetch_students()
+    if students:
+        st.dataframe(students, width="stretch", hide_index=True)
+    else:
+        st.info("No students found.")
+
+# ================= ADD STUDENT =================
+with tabs[1]:
     st.subheader("Add New Student")
     name = st.text_input("Name", key="add_name")
     age = st.number_input("Age", min_value=1, max_value=100, key="add_age")
@@ -76,7 +174,7 @@ with tabs[0]:
             st.warning("Please fill in all fields: Name, Course, and Department are required.")
         else:
             data = {"Name": name, "Age": age, "Course": course, "Department": department, "GPA": gpa}
-            res = requests.post(f"{API_URL}/students", json=data, timeout=10)
+            res = requests.post(f"{API_URL}/students", json=data, headers=get_headers(), timeout=10)
 
             if res.status_code == 200:
                 st.session_state["flash"] = {"type": "success", "msg": "Student added successfully!"}
@@ -84,15 +182,6 @@ with tabs[0]:
                 st.session_state["flash"] = {"type": "error", "msg": "Failed to add student!"}
             st.session_state["reset_add_form"] = True
             st.rerun()
-
-# ================= VIEW STUDENTS =================
-with tabs[1]:
-    st.subheader("All Students")
-    students = fetch_students()
-    if students:
-        st.dataframe(students, width="stretch", hide_index=True)
-    else:
-        st.info("No students found.")
 
 # ================= UPDATE STUDENT =================
 with tabs[2]:
@@ -124,7 +213,7 @@ with tabs[2]:
                 st.info("Nothing to update. Provide at least one new value.")
             else:
                 try:
-                    res = requests.put(f"{API_URL}/students/{student_id}", json=update_data, timeout=10)
+                    res = requests.put(f"{API_URL}/students/{student_id}", json=update_data, headers=get_headers(), timeout=10)
                     if res.ok:
                         st.session_state["flash"] = {"type": "success", "msg": "Student updated successfully!"}
                     else:
@@ -144,7 +233,7 @@ with tabs[3]:
             st.warning("Student ID is required.")
         else:
             try:
-                res = requests.delete(f"{API_URL}/students/{delete_id}", timeout=10)
+                res = requests.delete(f"{API_URL}/students/{delete_id}", headers=get_headers(), timeout=10)
                 if res.ok:
                     st.session_state["flash"] = {"type": "success", "msg": "Student deleted successfully!"}
                 else:

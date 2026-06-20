@@ -1,13 +1,16 @@
 # 🎓 FastAPI + MongoDB Student Management System
 
-A mini full-stack CRUD application for managing student records using FastAPI backend and Streamlit frontend with MongoDB database.
+A full-stack CRUD application for managing student records, now featuring a robust JWT authentication system. Built with a FastAPI backend, a Streamlit frontend, and a MongoDB database.
 
 ## 🚀 Features
 
-- **Create** - Add new student records with auto-incrementing IDs
-- **Read** - View all students or fetch a specific student by ID
-- **Update** - Update student information partially
-- **Delete** - Remove student records
+- **Authentication** - Secure JWT token-based login and signup system with password hashing (bcrypt).
+- **User Profiles** - Expanded signup tracking First Name, Last Name, Gender, and Date of Birth.
+- **Create** - Add new student records with auto-incrementing IDs.
+- **Read** - View all students or fetch a specific student by ID.
+- **Update** - Update student information partially.
+- **Delete** - Remove student records.
+- **Protected Routes** - All student management endpoints are protected and require a valid auth token.
 
 ## 📋 Prerequisites
 
@@ -19,7 +22,7 @@ A mini full-stack CRUD application for managing student records using FastAPI ba
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/MHS-007/FastAPI_With_MongoDB.git
+   git clone https://github.com/MaazSiddiqui16/FastAPI_With_MongoDB.git
    cd FastAPI_With_MongoDB
    ```
 
@@ -38,34 +41,28 @@ A mini full-stack CRUD application for managing student records using FastAPI ba
    ```
 
 4. **Set up environment variables**
-   - Create a `.env` file in the root directory
-   - Add your MongoDB connection string:
-   You can use **either** a cloud MongoDB Atlas or a local MongoDB instance:
+   - Create a `.env` file in the root directory.
+   - Add your connection and security details:
 
-### MongoDB Atlas (Recommended)
-```
+### MongoDB Atlas & Security Config
+```env
 MONGO_USER=your_atlas_username
 MONGO_PASS=your_atlas_password
 MONGO_CLUSTER=your_atlas_cluster_url
 DATABASE_NAME=your_db_name
-API_URL=your_api_url
-# Do NOT set MONGODB_URL when using Atlas
+API_URL=http://127.0.0.1:8000
+
+# Required for JWT Authentication
+SECRET_KEY=your_super_secret_random_string_here
 ```
 
 ### Local MongoDB (Alternative)
-```
+```env
 MONGODB_URL=mongodb://localhost:27017
 DATABASE_NAME=your_db_name
-API_URL=your_api_url
-# Do NOT set MONGO_USER, MONGO_PASS, or MONGO_CLUSTER when running locally
+API_URL=http://127.0.0.1:8000
+SECRET_KEY=your_super_secret_random_string_here
 ```
-
-- If both approaches are set, `MONGODB_URL` takes precedence.
-- Make sure to restart your backend after changing your .env! 
-
-5. **Start MongoDB**
-   - Make sure MongoDB is running either on your local machine or using Atlas.
-   - Default connection: `mongodb://localhost:27017/`
 
 ## 🚀 Running the Application
 
@@ -83,11 +80,10 @@ API_URL=your_api_url
 
 3. The API will be available at: `http://127.0.0.1:8000`
    - API Documentation: `http://127.0.0.1:8000/docs`
-   - Alternative Docs: `http://127.0.0.1:8000/redoc`
 
 ### Frontend (Streamlit)
 
-1. Open a new terminal and navigate to the frontend directory:
+1. Open a new terminal, activate your virtual environment, and navigate to the frontend directory:
    ```bash
    cd frontend
    ```
@@ -101,7 +97,14 @@ API_URL=your_api_url
 
 ## 📡 API Endpoints
 
-### Base URL: `http://127.0.0.1:8000`
+### Auth Routes
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/signup` | Register a new user |
+| POST | `/login` | Authenticate and retrieve JWT token |
+
+### Protected CRUD Routes
+*Note: All routes below require the `Authorization: Bearer <token>` header.*
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -111,74 +114,35 @@ API_URL=your_api_url
 | PUT | `/students/{id}` | Update student by ID |
 | DELETE | `/students/{id}` | Delete student by ID |
 
-## 📝 Example Usage
-
-### Create Student
-```bash
-POST /students
-Content-Type: application/json
-
-{
-  "Name": "John Doe",
-  "Age": 22,
-  "Course": "Database Management System",
-  "Department": "Software Engineering",
-  "GPA": 3.8
-}
-```
-
-### Get All Students
-```bash
-GET /students
-```
-
-### Get Student by ID
-```bash
-GET /students/1
-```
-
-### Update Student
-```bash
-PUT /students/1
-Content-Type: application/json
-
-{
-  "Name": "Jane Doe",
-  "GPA": 3.9
-}
-```
-
-### Delete Student
-```bash
-DELETE /students/1
-```
-
 ## 📂 Project Structure
 
-```
+```text
 FastAPI_with_MongoDB/
 ├── backend/
-│   └── main.py          # FastAPI backend application
+│   ├── auth.py          # JWT and password hashing logic
+│   ├── database.py      # MongoDB connection and configurations
+│   ├── main.py          # FastAPI application and route definitions
+│   └── models.py        # Pydantic schemas for data validation
 ├── frontend/
-│   └── app.py           # Streamlit frontend application
+│   └── app.py           # Streamlit frontend with auth state management
 ├── requirements.txt     # Python dependencies
-├── .gitignore          # Git ignore file
-└── README.md           # Project documentation
+├── .gitignore           # Git ignore file
+└── README.md            # Project documentation
 ```
 
 ## 🛡️ Technologies Used
 
-- **Backend**: FastAPI, Pydantic, PyMongo
-- **Frontend**: Streamlit
+- **Backend**: FastAPI, Pydantic, PyMongo, passlib[bcrypt], PyJWT
+- **Frontend**: Streamlit, Requests
 - **Database**: MongoDB
 - **Python**: 3.8+
 
 ## 📝 Notes
 
-- The application uses auto-incrementing IDs implemented with MongoDB counters
-- Student IDs start from 1 and increment automatically
-- The update endpoint accepts partial updates (only send fields you want to change)
-- MongoDB connection string can be configured via environment variables
+- The application uses auto-incrementing IDs implemented with MongoDB counters for students.
+- User authentication uses robust JSON Web Tokens (JWT). Passwords are never stored in plain text.
+- The Streamlit UI intelligently renders based on `st.session_state` to ensure an organized flow between unauthenticated users and logged-in dashboard users.
+- MongoDB connection strings and security keys are managed securely via environment variables.
 
 ## 🤝 Contributing
 
