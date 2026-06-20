@@ -1,0 +1,13 @@
+User Login
+     ↓
+JWT Token Generate
+     ↓
+Sign with SECRET_KEY
+     ↓
+Token given to the user
+     ↓
+Token comes with every request
+     ↓
+verify with SECRET_KEY
+     ↓
+Access Granted / Denied
